@@ -1,0 +1,1719 @@
+# 🐘 PostgreSQL Commands: Basic to Advanced
+
+A comprehensive reference guide covering almost everything you need in PostgreSQL.
+
+---
+
+## Table of Contents
+
+1. [Connecting to PostgreSQL](#1-connecting-to-postgresql)
+2. [psql Meta-Commands](#2-psql-meta-commands)
+3. [Database Operations](#3-database-operations)
+4. [Table Operations](#4-table-operations)
+5. [Data Types](#5-data-types)
+6. [CRUD Operations](#6-crud-operations)
+7. [Filtering & Sorting](#7-filtering--sorting)
+8. [Joins](#8-joins)
+9. [Aggregations & Grouping](#9-aggregations--grouping)
+10. [Subqueries & CTEs](#10-subqueries--ctes)
+11. [Indexes](#11-indexes)
+12. [Views](#12-views)
+13. [Stored Procedures & Functions](#13-stored-procedures--functions)
+14. [Triggers](#14-triggers)
+15. [Transactions](#15-transactions)
+16. [Constraints](#16-constraints)
+17. [Sequences](#17-sequences)
+18. [Schema Management](#18-schema-management)
+19. [User & Role Management](#19-user--role-management)
+20. [Backup & Restore](#20-backup--restore)
+21. [Performance & Query Analysis](#21-performance--query-analysis)
+22. [Window Functions](#22-window-functions)
+23. [JSON & JSONB](#23-json--jsonb)
+24. [Full-Text Search](#24-full-text-search)
+25. [Partitioning](#25-partitioning)
+26. [Inheritance](#26-inheritance)
+27. [Extensions](#27-extensions)
+28. [Advanced Features](#28-advanced-features)
+
+---
+
+## 1. Connecting to PostgreSQL
+
+```bash
+# Connect with default user
+psql
+
+# Starting postgresql inside docker
+docker exec -it <container_name_or_id> psql -U <your_username> -d <your_database_name>
+
+# Connect with specific user
+psql -U username
+
+# Connect to specific database
+psql -U username -d database_name
+
+# Connect to remote host
+psql -h hostname -p 5432 -U username -d database_name
+
+# Connect using a connection string
+psql "postgresql://username:password@hostname:5432/database_name"
+
+# Connect with password prompt
+psql -U username -W -d database_name
+```
+
+---
+
+## 2. psql Meta-Commands
+
+```sql
+\?              -- Help on psql commands
+\h              -- Help on SQL commands
+\h SELECT       -- Help on specific SQL command
+
+\l              -- List all databases
+\c dbname       -- Connect to a database
+\conninfo       -- Show current connection info
+
+\dt             -- List tables in current schema
+\dt *.*         -- List all tables in all schemas
+\dv             -- List views
+\di             -- List indexes
+\ds             -- List sequences
+\df             -- List functions
+\dn             -- List schemas
+\du             -- List users/roles
+\dp             -- List table privileges
+
+\d tablename    -- Describe a table (columns, types, constraints)
+\d+ tablename   -- Describe table with extra info
+
+\timing         -- Toggle query execution time
+\e              -- Open editor for query
+\i file.sql     -- Execute SQL from file
+\o file.txt     -- Output results to file
+\copy           -- Copy data to/from files
+
+\x              -- Toggle expanded output (useful for wide tables)
+\a              -- Toggle aligned/unaligned output
+\pset border 2  -- Set border style
+
+\q              -- Quit psql
+```
+
+---
+
+## 3. Database Operations
+
+```sql
+-- Create database
+CREATE DATABASE mydb;
+CREATE DATABASE mydb OWNER myuser ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8';
+
+-- List databases
+SELECT datname FROM pg_database;
+
+-- Rename database
+ALTER DATABASE mydb RENAME TO newdb;
+
+-- Change database owner
+ALTER DATABASE mydb OWNER TO newuser;
+
+-- Drop database
+DROP DATABASE mydb;
+DROP DATABASE IF EXISTS mydb;
+
+-- Show current database
+SELECT current_database();
+
+-- Database size
+SELECT pg_size_pretty(pg_database_size('mydb'));
+
+-- All databases with sizes
+SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
+FROM pg_database
+ORDER BY pg_database_size(datname) DESC;
+```
+
+---
+
+## 4. Table Operations
+
+```sql
+-- Create a table
+CREATE TABLE employees (
+    id          SERIAL PRIMARY KEY,
+    first_name  VARCHAR(50) NOT NULL,
+    last_name   VARCHAR(50) NOT NULL,
+    email       VARCHAR(100) UNIQUE,
+    salary      NUMERIC(10, 2) DEFAULT 0.00,
+    department  VARCHAR(50),
+    hired_at    DATE DEFAULT CURRENT_DATE,
+    is_active   BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+-- Create table from another table (structure only)
+CREATE TABLE employees_backup AS TABLE employees WITH NO DATA;
+
+-- Create table from a query
+CREATE TABLE high_earners AS
+    SELECT * FROM employees WHERE salary > 80000;
+
+-- Rename table
+ALTER TABLE employees RENAME TO staff;
+
+-- Add a column
+ALTER TABLE employees ADD COLUMN phone VARCHAR(20);
+
+-- Drop a column
+ALTER TABLE employees DROP COLUMN phone;
+
+-- Rename a column
+ALTER TABLE employees RENAME COLUMN email TO work_email;
+
+-- Change column type
+ALTER TABLE employees ALTER COLUMN salary TYPE BIGINT;
+
+-- Set/drop default
+ALTER TABLE employees ALTER COLUMN is_active SET DEFAULT TRUE;
+ALTER TABLE employees ALTER COLUMN is_active DROP DEFAULT;
+
+-- Set NOT NULL
+ALTER TABLE employees ALTER COLUMN first_name SET NOT NULL;
+ALTER TABLE employees ALTER COLUMN first_name DROP NOT NULL;
+
+-- Drop a table
+DROP TABLE employees;
+DROP TABLE IF EXISTS employees;
+DROP TABLE employees CASCADE;  -- Also drops dependent objects
+
+-- Truncate (delete all rows fast)
+TRUNCATE TABLE employees;
+TRUNCATE TABLE employees RESTART IDENTITY CASCADE;
+
+-- Show table size
+SELECT pg_size_pretty(pg_total_relation_size('employees'));
+
+-- List all tables with sizes
+SELECT
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
+```
+
+---
+
+## 5. Data Types
+
+```sql
+-- Numeric
+SMALLINT            -- 2 bytes, -32768 to 32767
+INTEGER / INT       -- 4 bytes
+BIGINT              -- 8 bytes
+SERIAL              -- Auto-increment INT
+BIGSERIAL           -- Auto-increment BIGINT
+NUMERIC(p, s)       -- Exact decimal, p=precision, s=scale
+DECIMAL(p, s)       -- Same as NUMERIC
+REAL                -- 4-byte float
+DOUBLE PRECISION    -- 8-byte float
+
+-- Character
+CHAR(n)             -- Fixed-length string
+VARCHAR(n)          -- Variable-length string, max n
+TEXT                -- Unlimited length string
+
+-- Date/Time
+DATE                -- Date only (YYYY-MM-DD)
+TIME                -- Time only
+TIMETZ              -- Time with timezone
+TIMESTAMP           -- Date and time
+TIMESTAMPTZ         -- Date and time with timezone (recommended)
+INTERVAL            -- Time interval
+
+-- Boolean
+BOOLEAN / BOOL      -- TRUE / FALSE / NULL
+
+-- Binary
+BYTEA               -- Binary data
+
+-- UUID
+UUID                -- Universally unique identifier
+
+-- JSON
+JSON                -- Stored as text
+JSONB               -- Stored as binary (faster, indexable)
+
+-- Arrays
+INTEGER[]           -- Array of integers
+TEXT[]              -- Array of text
+
+-- Network
+INET                -- IP address
+CIDR                -- Network address
+MACADDR             -- MAC address
+
+-- Geometric
+POINT, LINE, LSEG, BOX, PATH, POLYGON, CIRCLE
+
+-- Special
+OID                 -- Object identifier
+MONEY               -- Currency amount
+XML                 -- XML data
+TSVECTOR            -- Full-text search
+```
+
+---
+
+## 6. CRUD Operations
+
+### INSERT
+
+```sql
+-- Basic insert
+INSERT INTO employees (first_name, last_name, email, salary)
+VALUES ('John', 'Doe', 'john@example.com', 75000);
+
+-- Insert multiple rows
+INSERT INTO employees (first_name, last_name, salary) VALUES
+    ('Jane', 'Smith', 82000),
+    ('Bob', 'Johnson', 68000),
+    ('Alice', 'Williams', 91000);
+
+-- Insert and return generated ID
+INSERT INTO employees (first_name, last_name)
+VALUES ('Tom', 'Brown')
+RETURNING id, created_at;
+
+-- Insert from SELECT
+INSERT INTO employees_backup
+SELECT * FROM employees WHERE department = 'IT';
+
+-- Upsert (Insert or Update on conflict)
+INSERT INTO employees (id, first_name, last_name, email)
+VALUES (1, 'John', 'Doe', 'john_new@example.com')
+ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        first_name = EXCLUDED.first_name;
+
+-- Insert or do nothing on conflict
+INSERT INTO employees (email, first_name, last_name)
+VALUES ('john@example.com', 'John', 'Doe')
+ON CONFLICT (email) DO NOTHING;
+```
+
+### SELECT
+
+```sql
+-- Basic select
+SELECT * FROM employees;
+
+-- Select specific columns
+SELECT first_name, last_name, salary FROM employees;
+
+-- Alias columns
+SELECT first_name AS "First Name", salary * 12 AS annual_salary FROM employees;
+
+-- Distinct values
+SELECT DISTINCT department FROM employees;
+
+-- Limit and offset
+SELECT * FROM employees LIMIT 10;
+SELECT * FROM employees LIMIT 10 OFFSET 20;  -- Page 3 (page size 10)
+
+-- Conditional expressions
+SELECT first_name,
+    CASE
+        WHEN salary < 50000 THEN 'Low'
+        WHEN salary BETWEEN 50000 AND 80000 THEN 'Mid'
+        ELSE 'High'
+    END AS salary_band
+FROM employees;
+
+-- COALESCE (first non-null)
+SELECT COALESCE(phone, email, 'No contact') AS contact FROM employees;
+
+-- NULLIF (returns NULL if equal)
+SELECT NULLIF(salary, 0) FROM employees;
+```
+
+### UPDATE
+
+```sql
+-- Basic update
+UPDATE employees SET salary = 80000 WHERE id = 1;
+
+-- Update multiple columns
+UPDATE employees
+SET salary = 85000, department = 'Engineering'
+WHERE id = 1;
+
+-- Update with calculation
+UPDATE employees SET salary = salary * 1.10 WHERE department = 'Sales';
+
+-- Update using another table
+UPDATE employees e
+SET department = d.name
+FROM departments d
+WHERE e.department_id = d.id;
+
+-- Update and return updated rows
+UPDATE employees SET is_active = FALSE
+WHERE hired_at < '2010-01-01'
+RETURNING id, first_name, last_name;
+```
+
+### DELETE
+
+```sql
+-- Basic delete
+DELETE FROM employees WHERE id = 1;
+
+-- Delete with condition
+DELETE FROM employees WHERE is_active = FALSE AND hired_at < '2015-01-01';
+
+-- Delete all rows (slower than TRUNCATE, but transactional)
+DELETE FROM employees;
+
+-- Delete using another table
+DELETE FROM employees
+WHERE department_id IN (SELECT id FROM departments WHERE closed = TRUE);
+
+-- Delete and return deleted rows
+DELETE FROM employees WHERE salary < 30000
+RETURNING *;
+```
+
+---
+
+## 7. Filtering & Sorting
+
+```sql
+-- Basic WHERE
+SELECT * FROM employees WHERE department = 'IT';
+
+-- Comparison operators
+WHERE salary > 50000
+WHERE salary >= 50000
+WHERE salary < 80000
+WHERE salary <> 50000    -- Not equal
+WHERE salary != 50000    -- Not equal (alternative)
+
+-- Logical operators
+WHERE department = 'IT' AND salary > 60000;
+WHERE department = 'IT' OR department = 'HR';
+WHERE NOT is_active;
+
+-- BETWEEN (inclusive)
+WHERE salary BETWEEN 50000 AND 80000;
+WHERE hired_at BETWEEN '2020-01-01' AND '2022-12-31';
+
+-- IN / NOT IN
+WHERE department IN ('IT', 'HR', 'Finance');
+WHERE id NOT IN (1, 2, 3);
+
+-- LIKE / ILIKE (case-insensitive)
+WHERE first_name LIKE 'J%';        -- Starts with J
+WHERE email LIKE '%@gmail.com';    -- Ends with @gmail.com
+WHERE last_name LIKE '_mith';      -- One char then 'mith'
+WHERE first_name ILIKE 'john%';    -- Case-insensitive
+
+-- IS NULL / IS NOT NULL
+WHERE phone IS NULL;
+WHERE email IS NOT NULL;
+
+-- ORDER BY
+SELECT * FROM employees ORDER BY salary DESC;
+SELECT * FROM employees ORDER BY last_name ASC, first_name ASC;
+SELECT * FROM employees ORDER BY hired_at DESC NULLS LAST;
+
+-- FETCH (SQL standard LIMIT)
+SELECT * FROM employees ORDER BY salary DESC FETCH FIRST 5 ROWS ONLY;
+```
+
+---
+
+## 8. Joins
+
+```sql
+-- Sample tables assumed:
+-- employees(id, first_name, department_id, manager_id)
+-- departments(id, name, location)
+
+-- INNER JOIN (only matching rows)
+SELECT e.first_name, d.name AS department
+FROM employees e
+INNER JOIN departments d ON e.department_id = d.id;
+
+-- LEFT JOIN (all from left, matching from right)
+SELECT e.first_name, d.name AS department
+FROM employees e
+LEFT JOIN departments d ON e.department_id = d.id;
+
+-- RIGHT JOIN (all from right, matching from left)
+SELECT e.first_name, d.name AS department
+FROM employees e
+RIGHT JOIN departments d ON e.department_id = d.id;
+
+-- FULL OUTER JOIN
+SELECT e.first_name, d.name AS department
+FROM employees e
+FULL OUTER JOIN departments d ON e.department_id = d.id;
+
+-- CROSS JOIN (cartesian product)
+SELECT e.first_name, d.name
+FROM employees e
+CROSS JOIN departments d;
+
+-- SELF JOIN (employees with their manager)
+SELECT e.first_name AS employee, m.first_name AS manager
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.id;
+
+-- Join with multiple conditions
+SELECT e.first_name, d.name
+FROM employees e
+JOIN departments d ON e.department_id = d.id AND e.is_active = TRUE;
+
+-- Multiple joins
+SELECT e.first_name, d.name AS dept, p.title AS project
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+JOIN employee_projects ep ON e.id = ep.employee_id
+JOIN projects p ON ep.project_id = p.id;
+```
+
+---
+
+## 9. Aggregations & Grouping
+
+```sql
+-- COUNT
+SELECT COUNT(*) FROM employees;
+SELECT COUNT(DISTINCT department) FROM employees;
+
+-- SUM, AVG, MIN, MAX
+SELECT SUM(salary), AVG(salary), MIN(salary), MAX(salary) FROM employees;
+
+-- GROUP BY
+SELECT department, COUNT(*) AS headcount, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department;
+
+-- GROUP BY with ORDER BY
+SELECT department, SUM(salary) AS total_salary
+FROM employees
+GROUP BY department
+ORDER BY total_salary DESC;
+
+-- HAVING (filter after grouping)
+SELECT department, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department
+HAVING AVG(salary) > 70000;
+
+-- GROUPING SETS (multiple GROUP BY in one query)
+SELECT department, is_active, COUNT(*)
+FROM employees
+GROUP BY GROUPING SETS ((department), (is_active), ());
+
+-- ROLLUP (subtotals and grand total)
+SELECT department, is_active, COUNT(*) AS cnt
+FROM employees
+GROUP BY ROLLUP (department, is_active);
+
+-- CUBE (all combinations)
+SELECT department, is_active, COUNT(*) AS cnt
+FROM employees
+GROUP BY CUBE (department, is_active);
+
+-- STRING_AGG (aggregate strings)
+SELECT department, STRING_AGG(first_name, ', ' ORDER BY first_name) AS members
+FROM employees
+GROUP BY department;
+
+-- ARRAY_AGG
+SELECT department, ARRAY_AGG(first_name ORDER BY first_name) AS members
+FROM employees
+GROUP BY department;
+```
+
+---
+
+## 10. Subqueries & CTEs
+
+```sql
+-- Subquery in WHERE
+SELECT * FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);
+
+-- Subquery in FROM (derived table)
+SELECT dept_stats.department, dept_stats.avg_sal
+FROM (
+    SELECT department, AVG(salary) AS avg_sal
+    FROM employees
+    GROUP BY department
+) AS dept_stats
+WHERE avg_sal > 70000;
+
+-- Subquery in SELECT (scalar subquery)
+SELECT first_name,
+    (SELECT name FROM departments WHERE id = e.department_id) AS dept_name
+FROM employees e;
+
+-- EXISTS
+SELECT * FROM employees e
+WHERE EXISTS (
+    SELECT 1 FROM projects p WHERE p.lead_id = e.id
+);
+
+-- NOT EXISTS
+SELECT * FROM departments d
+WHERE NOT EXISTS (
+    SELECT 1 FROM employees e WHERE e.department_id = d.id
+);
+
+-- IN with subquery
+SELECT * FROM employees
+WHERE department_id IN (
+    SELECT id FROM departments WHERE location = 'New York'
+);
+
+-- CTE (Common Table Expression)
+WITH high_earners AS (
+    SELECT * FROM employees WHERE salary > 80000
+)
+SELECT department, COUNT(*) FROM high_earners GROUP BY department;
+
+-- Multiple CTEs
+WITH
+dept_avg AS (
+    SELECT department_id, AVG(salary) AS avg_salary
+    FROM employees
+    GROUP BY department_id
+),
+high_depts AS (
+    SELECT department_id FROM dept_avg WHERE avg_salary > 75000
+)
+SELECT e.first_name, e.salary
+FROM employees e
+WHERE e.department_id IN (SELECT department_id FROM high_depts);
+
+-- Recursive CTE (org hierarchy)
+WITH RECURSIVE org_chart AS (
+    -- Base case: top-level employees (no manager)
+    SELECT id, first_name, manager_id, 0 AS level
+    FROM employees
+    WHERE manager_id IS NULL
+
+    UNION ALL
+
+    -- Recursive case
+    SELECT e.id, e.first_name, e.manager_id, oc.level + 1
+    FROM employees e
+    JOIN org_chart oc ON e.manager_id = oc.id
+)
+SELECT * FROM org_chart ORDER BY level, first_name;
+```
+
+---
+
+## 11. Indexes
+
+```sql
+-- Create basic index
+CREATE INDEX idx_employees_department ON employees(department);
+
+-- Create unique index
+CREATE UNIQUE INDEX idx_employees_email ON employees(email);
+
+-- Create composite index
+CREATE INDEX idx_employees_dept_salary ON employees(department, salary);
+
+-- Create partial index (only active employees)
+CREATE INDEX idx_active_employees ON employees(last_name)
+WHERE is_active = TRUE;
+
+-- Create index on expression
+CREATE INDEX idx_lower_email ON employees(LOWER(email));
+
+-- B-Tree index (default)
+CREATE INDEX idx_salary ON employees USING BTREE (salary);
+
+-- Hash index (equality only)
+CREATE INDEX idx_dept_hash ON employees USING HASH (department);
+
+-- GIN index (for arrays, JSONB, full-text search)
+CREATE INDEX idx_tags ON articles USING GIN (tags);
+
+-- GiST index (for geometric, full-text)
+CREATE INDEX idx_fts ON articles USING GIST (to_tsvector('english', body));
+
+-- BRIN index (for large tables with sequential data)
+CREATE INDEX idx_created_brin ON events USING BRIN (created_at);
+
+-- Create index concurrently (no table lock)
+CREATE INDEX CONCURRENTLY idx_employees_email ON employees(email);
+
+-- List all indexes
+SELECT indexname, tablename, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public';
+
+-- Drop index
+DROP INDEX idx_employees_department;
+DROP INDEX CONCURRENTLY idx_employees_department;
+
+-- Rebuild index
+REINDEX INDEX idx_employees_department;
+REINDEX TABLE employees;
+```
+
+---
+
+## 12. Views
+
+```sql
+-- Create a view
+CREATE VIEW active_employees AS
+SELECT id, first_name, last_name, department, salary
+FROM employees
+WHERE is_active = TRUE;
+
+-- Query a view
+SELECT * FROM active_employees WHERE department = 'IT';
+
+-- Replace/update view
+CREATE OR REPLACE VIEW active_employees AS
+SELECT id, first_name, last_name, email, department, salary
+FROM employees
+WHERE is_active = TRUE;
+
+-- Create view with check option (prevents inserts/updates that don't match WHERE)
+CREATE VIEW it_employees AS
+SELECT * FROM employees WHERE department = 'IT'
+WITH LOCAL CHECK OPTION;
+
+-- Materialized view (stores query results physically)
+CREATE MATERIALIZED VIEW dept_summary AS
+SELECT department, COUNT(*) AS headcount, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department;
+
+-- Refresh materialized view
+REFRESH MATERIALIZED VIEW dept_summary;
+
+-- Refresh without locking (allows reads during refresh)
+REFRESH MATERIALIZED VIEW CONCURRENTLY dept_summary;
+
+-- Create index on materialized view
+CREATE INDEX idx_dept_summary ON dept_summary(department);
+
+-- Drop view
+DROP VIEW active_employees;
+DROP MATERIALIZED VIEW dept_summary;
+
+-- List all views
+SELECT table_name FROM information_schema.views WHERE table_schema = 'public';
+```
+
+---
+
+## 13. Stored Procedures & Functions
+
+```sql
+-- Create a simple function
+CREATE OR REPLACE FUNCTION get_full_name(p_id INTEGER)
+RETURNS TEXT AS $$
+DECLARE
+    v_name TEXT;
+BEGIN
+    SELECT first_name || ' ' || last_name INTO v_name
+    FROM employees WHERE id = p_id;
+    RETURN v_name;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Call the function
+SELECT get_full_name(1);
+
+-- Function returning a table
+CREATE OR REPLACE FUNCTION get_dept_employees(p_dept TEXT)
+RETURNS TABLE(id INT, full_name TEXT, salary NUMERIC) AS $$
+BEGIN
+    RETURN QUERY
+        SELECT e.id, e.first_name || ' ' || e.last_name, e.salary
+        FROM employees e
+        WHERE e.department = p_dept;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM get_dept_employees('IT');
+
+-- Function with OUT parameters
+CREATE OR REPLACE FUNCTION get_salary_stats(
+    OUT min_sal NUMERIC,
+    OUT max_sal NUMERIC,
+    OUT avg_sal NUMERIC
+) AS $$
+BEGIN
+    SELECT MIN(salary), MAX(salary), AVG(salary)
+    INTO min_sal, max_sal, avg_sal
+    FROM employees;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT * FROM get_salary_stats();
+
+-- Procedure (no return value, supports transactions)
+CREATE OR REPLACE PROCEDURE give_raise(p_dept TEXT, p_percent NUMERIC)
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE employees
+    SET salary = salary * (1 + p_percent / 100)
+    WHERE department = p_dept;
+    COMMIT;
+END;
+$$;
+
+CALL give_raise('IT', 10);
+
+-- Drop function / procedure
+DROP FUNCTION get_full_name(INTEGER);
+DROP PROCEDURE give_raise(TEXT, NUMERIC);
+
+-- List functions
+SELECT routine_name, routine_type
+FROM information_schema.routines
+WHERE routine_schema = 'public';
+
+-- SQL language function (simpler)
+CREATE OR REPLACE FUNCTION double_salary(p_salary NUMERIC)
+RETURNS NUMERIC AS $$
+    SELECT p_salary * 2;
+$$ LANGUAGE sql;
+```
+
+---
+
+## 14. Triggers
+
+```sql
+-- Create audit log table
+CREATE TABLE employee_audit (
+    id          SERIAL PRIMARY KEY,
+    employee_id INTEGER,
+    action      VARCHAR(10),
+    changed_at  TIMESTAMP DEFAULT NOW(),
+    changed_by  TEXT DEFAULT current_user
+);
+
+-- Create trigger function
+CREATE OR REPLACE FUNCTION log_employee_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        INSERT INTO employee_audit(employee_id, action)
+        VALUES (OLD.id, 'DELETE');
+        RETURN OLD;
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO employee_audit(employee_id, action)
+        VALUES (NEW.id, 'UPDATE');
+        RETURN NEW;
+    ELSIF TG_OP = 'INSERT' THEN
+        INSERT INTO employee_audit(employee_id, action)
+        VALUES (NEW.id, 'INSERT');
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger
+CREATE TRIGGER employee_audit_trigger
+AFTER INSERT OR UPDATE OR DELETE ON employees
+FOR EACH ROW EXECUTE FUNCTION log_employee_changes();
+
+-- BEFORE trigger example (auto-set updated_at)
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_updated_at_trigger
+BEFORE UPDATE ON employees
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Statement-level trigger (fires once per statement)
+CREATE TRIGGER after_bulk_update
+AFTER UPDATE ON employees
+FOR EACH STATEMENT EXECUTE FUNCTION log_bulk_change();
+
+-- Disable/enable trigger
+ALTER TABLE employees DISABLE TRIGGER employee_audit_trigger;
+ALTER TABLE employees ENABLE TRIGGER employee_audit_trigger;
+
+-- Drop trigger
+DROP TRIGGER employee_audit_trigger ON employees;
+
+-- List triggers
+SELECT trigger_name, event_manipulation, event_object_table
+FROM information_schema.triggers
+WHERE trigger_schema = 'public';
+```
+
+---
+
+## 15. Transactions
+
+```sql
+-- Basic transaction
+BEGIN;
+    UPDATE employees SET salary = salary + 5000 WHERE id = 1;
+    UPDATE budgets SET amount = amount - 5000 WHERE department = 'IT';
+COMMIT;
+
+-- Rollback on error
+BEGIN;
+    DELETE FROM employees WHERE department = 'HR';
+    -- Something went wrong:
+ROLLBACK;
+
+-- Savepoints (partial rollback)
+BEGIN;
+    INSERT INTO employees(first_name, last_name) VALUES ('A', 'B');
+    SAVEPOINT sp1;
+
+    INSERT INTO employees(first_name, last_name) VALUES ('C', 'D');
+    SAVEPOINT sp2;
+
+    -- Oops, rollback to sp1 only
+    ROLLBACK TO SAVEPOINT sp1;
+
+    -- Release savepoint
+    RELEASE SAVEPOINT sp1;
+COMMIT;
+
+-- Transaction isolation levels
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;    -- Default
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+-- Check current isolation level
+SHOW transaction_isolation;
+
+-- SET LOCAL (for current transaction only)
+SET LOCAL lock_timeout = '5s';
+```
+
+---
+
+## 16. Constraints
+
+```sql
+-- PRIMARY KEY
+ALTER TABLE employees ADD PRIMARY KEY (id);
+
+-- FOREIGN KEY
+ALTER TABLE employees
+ADD CONSTRAINT fk_department
+FOREIGN KEY (department_id) REFERENCES departments(id)
+ON DELETE SET NULL
+ON UPDATE CASCADE;
+
+-- UNIQUE
+ALTER TABLE employees ADD CONSTRAINT uq_email UNIQUE (email);
+
+-- CHECK
+ALTER TABLE employees
+ADD CONSTRAINT chk_salary CHECK (salary >= 0);
+
+ALTER TABLE employees
+ADD CONSTRAINT chk_dates CHECK (end_date > start_date);
+
+-- NOT NULL (via ALTER COLUMN)
+ALTER TABLE employees ALTER COLUMN first_name SET NOT NULL;
+
+-- Composite unique constraint
+ALTER TABLE employee_projects
+ADD CONSTRAINT uq_emp_proj UNIQUE (employee_id, project_id);
+
+-- Deferred constraint (checked at COMMIT, not per row)
+ALTER TABLE employees
+ADD CONSTRAINT fk_manager
+FOREIGN KEY (manager_id) REFERENCES employees(id)
+DEFERRABLE INITIALLY DEFERRED;
+
+-- List all constraints
+SELECT conname, contype, conrelid::regclass
+FROM pg_constraint
+WHERE conrelid = 'employees'::regclass;
+
+-- Drop constraint
+ALTER TABLE employees DROP CONSTRAINT chk_salary;
+```
+
+---
+
+## 17. Sequences
+
+```sql
+-- Create sequence
+CREATE SEQUENCE employee_id_seq
+    START WITH 1000
+    INCREMENT BY 1
+    MINVALUE 1000
+    MAXVALUE 9999999
+    CACHE 10;
+
+-- Use sequence
+SELECT nextval('employee_id_seq');   -- Get next value
+SELECT currval('employee_id_seq');   -- Current value (within session)
+SELECT lastval();                    -- Last value returned by nextval
+
+-- Set sequence value
+SELECT setval('employee_id_seq', 5000);
+SELECT setval('employee_id_seq', 5000, false);  -- Next call returns 5000
+
+-- Alter sequence
+ALTER SEQUENCE employee_id_seq INCREMENT BY 2;
+ALTER SEQUENCE employee_id_seq RESTART WITH 1;
+
+-- Use sequence as default
+ALTER TABLE employees
+ALTER COLUMN id SET DEFAULT nextval('employee_id_seq');
+
+-- Associate sequence with column
+ALTER SEQUENCE employee_id_seq OWNED BY employees.id;
+
+-- Drop sequence
+DROP SEQUENCE employee_id_seq;
+
+-- List sequences
+SELECT sequencename, start_value, increment_by, last_value
+FROM pg_sequences WHERE schemaname = 'public';
+```
+
+---
+
+## 18. Schema Management
+
+```sql
+-- Create schema
+CREATE SCHEMA hr;
+CREATE SCHEMA IF NOT EXISTS hr AUTHORIZATION myuser;
+
+-- Set search path (which schemas are searched)
+SET search_path TO hr, public;
+SHOW search_path;
+
+-- Create object in specific schema
+CREATE TABLE hr.employees (id SERIAL, name TEXT);
+
+-- Move table to another schema
+ALTER TABLE employees SET SCHEMA hr;
+
+-- Drop schema
+DROP SCHEMA hr;
+DROP SCHEMA hr CASCADE;  -- Drop all objects inside too
+
+-- List schemas
+SELECT schema_name FROM information_schema.schemata;
+```
+
+---
+
+## 19. User & Role Management
+
+```sql
+-- Create user
+CREATE USER alice WITH PASSWORD 'securepassword';
+CREATE USER alice WITH PASSWORD 'securepassword' CREATEDB;
+
+-- Create role
+CREATE ROLE readonly;
+CREATE ROLE developer LOGIN PASSWORD 'devpass';
+
+-- Grant privileges
+GRANT CONNECT ON DATABASE mydb TO alice;
+GRANT USAGE ON SCHEMA public TO alice;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly;
+GRANT SELECT, INSERT, UPDATE, DELETE ON employees TO alice;
+GRANT ALL PRIVILEGES ON TABLE employees TO alice;
+GRANT EXECUTE ON FUNCTION get_full_name(INTEGER) TO alice;
+
+-- Grant role to user
+GRANT readonly TO alice;
+GRANT developer TO alice WITH ADMIN OPTION;
+
+-- Revoke privileges
+REVOKE SELECT ON employees FROM alice;
+REVOKE readonly FROM alice;
+
+-- Alter user
+ALTER USER alice WITH PASSWORD 'newpassword';
+ALTER USER alice VALID UNTIL '2025-12-31';
+ALTER USER alice CREATEDB;
+ALTER USER alice NOCREATEDB;
+ALTER USER alice SUPERUSER;
+
+-- Grant on future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT ON TABLES TO readonly;
+
+-- Row-level security
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY own_rows ON employees
+    USING (created_by = current_user);
+
+-- Drop user/role
+DROP USER alice;
+DROP ROLE readonly;
+
+-- List users and roles
+SELECT usename, usesuper, usecreatedb FROM pg_user;
+SELECT rolname, rolsuper, rolcreatedb FROM pg_roles;
+
+-- Show grants
+\dp employees                  -- psql
+SELECT grantee, privilege_type FROM information_schema.role_table_grants
+WHERE table_name = 'employees';
+```
+
+---
+
+## 20. Backup & Restore
+
+```bash
+# Dump single database (SQL format)
+pg_dump -U postgres -d mydb -f mydb.sql
+
+# Dump in custom format (compressed, faster restore)
+pg_dump -U postgres -d mydb -Fc -f mydb.dump
+
+# Dump specific table
+pg_dump -U postgres -d mydb -t employees -f employees.sql
+
+# Dump schema only (no data)
+pg_dump -U postgres -d mydb --schema-only -f mydb_schema.sql
+
+# Dump data only
+pg_dump -U postgres -d mydb --data-only -f mydb_data.sql
+
+# Dump all databases
+pg_dumpall -U postgres -f all_databases.sql
+
+# Restore SQL dump
+psql -U postgres -d mydb -f mydb.sql
+
+# Restore custom format dump
+pg_restore -U postgres -d mydb mydb.dump
+
+# Restore with verbose output
+pg_restore -U postgres -d mydb -v mydb.dump
+
+# Restore specific table
+pg_restore -U postgres -d mydb -t employees mydb.dump
+
+# Copy data to CSV
+\copy employees TO '/tmp/employees.csv' WITH CSV HEADER DELIMITER ',';
+
+# Copy data from CSV
+\copy employees FROM '/tmp/employees.csv' WITH CSV HEADER DELIMITER ',';
+```
+
+---
+
+## 21. Performance & Query Analysis
+
+```sql
+-- EXPLAIN (shows query plan)
+EXPLAIN SELECT * FROM employees WHERE department = 'IT';
+
+-- EXPLAIN ANALYZE (runs the query and shows actual times)
+EXPLAIN ANALYZE SELECT * FROM employees WHERE department = 'IT';
+
+-- Full verbose output
+EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT TEXT)
+SELECT * FROM employees WHERE salary > 70000;
+
+-- Check slow queries (requires pg_stat_statements extension)
+SELECT query, calls, total_exec_time, mean_exec_time
+FROM pg_stat_statements
+ORDER BY mean_exec_time DESC
+LIMIT 10;
+
+-- Table statistics
+SELECT * FROM pg_stat_user_tables WHERE relname = 'employees';
+
+-- Index usage stats
+SELECT indexrelname, idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes
+WHERE relname = 'employees';
+
+-- Unused indexes
+SELECT relname, indexrelname, idx_scan
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0;
+
+-- Table bloat check
+SELECT tablename, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC;
+
+-- VACUUM (reclaim space from dead tuples)
+VACUUM employees;
+VACUUM VERBOSE ANALYZE employees;
+VACUUM FULL employees;  -- Rewrites table (locks table)
+
+-- ANALYZE (update table statistics)
+ANALYZE employees;
+
+-- Lock monitoring
+SELECT pid, wait_event_type, wait_event, query
+FROM pg_stat_activity
+WHERE wait_event IS NOT NULL;
+
+-- Kill long-running queries
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE state = 'active'
+  AND now() - query_start > interval '5 minutes';
+
+-- Connection count
+SELECT count(*) FROM pg_stat_activity;
+
+-- Cache hit ratio (aim for > 99%)
+SELECT
+    sum(heap_blks_hit) / (sum(heap_blks_hit) + sum(heap_blks_read)) AS cache_hit_ratio
+FROM pg_statio_user_tables;
+
+-- Set work_mem for current session (helps with sorts/hashes)
+SET work_mem = '256MB';
+```
+
+---
+
+## 22. Window Functions
+
+```sql
+-- ROW_NUMBER: unique sequential number
+SELECT first_name, salary,
+    ROW_NUMBER() OVER (ORDER BY salary DESC) AS rank
+FROM employees;
+
+-- RANK: same rank for ties, gaps after tie
+SELECT first_name, salary,
+    RANK() OVER (ORDER BY salary DESC) AS rank
+FROM employees;
+
+-- DENSE_RANK: same rank for ties, no gaps
+SELECT first_name, salary,
+    DENSE_RANK() OVER (ORDER BY salary DESC) AS dense_rank
+FROM employees;
+
+-- NTILE: divide into N equal groups
+SELECT first_name, salary,
+    NTILE(4) OVER (ORDER BY salary) AS quartile
+FROM employees;
+
+-- LAG / LEAD (access other rows)
+SELECT first_name, salary,
+    LAG(salary) OVER (ORDER BY hired_at) AS prev_salary,
+    LEAD(salary) OVER (ORDER BY hired_at) AS next_salary
+FROM employees;
+
+-- FIRST_VALUE / LAST_VALUE
+SELECT first_name, department, salary,
+    FIRST_VALUE(salary) OVER (PARTITION BY department ORDER BY salary DESC) AS top_salary
+FROM employees;
+
+-- Partition by department
+SELECT first_name, department, salary,
+    RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank
+FROM employees;
+
+-- Running total (cumulative sum)
+SELECT first_name, salary,
+    SUM(salary) OVER (ORDER BY hired_at ROWS UNBOUNDED PRECEDING) AS running_total
+FROM employees;
+
+-- Moving average (last 3 rows)
+SELECT first_name, salary,
+    AVG(salary) OVER (ORDER BY hired_at ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg
+FROM employees;
+
+-- Percent rank (0 to 1)
+SELECT first_name, salary,
+    PERCENT_RANK() OVER (ORDER BY salary) AS pct_rank
+FROM employees;
+```
+
+---
+
+## 23. JSON & JSONB
+
+```sql
+-- Create table with JSONB
+CREATE TABLE products (
+    id      SERIAL PRIMARY KEY,
+    name    TEXT,
+    data    JSONB
+);
+
+-- Insert JSON
+INSERT INTO products (name, data) VALUES
+('Phone', '{"brand": "Apple", "specs": {"ram": 8, "storage": 256}, "tags": ["mobile", "electronics"]}');
+
+-- Access JSON fields
+SELECT data -> 'brand' AS brand FROM products;             -- Returns JSON
+SELECT data ->> 'brand' AS brand FROM products;            -- Returns TEXT
+SELECT data -> 'specs' -> 'ram' AS ram FROM products;
+SELECT data #> '{specs,ram}' AS ram FROM products;         -- Path operator
+SELECT data #>> '{specs,ram}' AS ram FROM products;        -- Path as text
+
+-- Query inside JSON
+SELECT * FROM products WHERE data ->> 'brand' = 'Apple';
+SELECT * FROM products WHERE (data -> 'specs' ->> 'ram')::INT > 4;
+
+-- JSON array operations
+SELECT data -> 'tags' -> 0 AS first_tag FROM products;       -- First element
+SELECT * FROM products WHERE data -> 'tags' ? 'mobile';      -- Key exists
+SELECT * FROM products WHERE data @> '{"brand": "Apple"}';   -- Contains
+
+-- Update JSONB
+UPDATE products
+SET data = data || '{"color": "black"}'        -- Merge
+WHERE id = 1;
+
+UPDATE products
+SET data = jsonb_set(data, '{specs,storage}', '512')
+WHERE id = 1;
+
+-- Delete JSON key
+UPDATE products SET data = data - 'color' WHERE id = 1;
+
+-- Expand JSON array to rows
+SELECT id, jsonb_array_elements_text(data -> 'tags') AS tag FROM products;
+
+-- Expand JSON object to key-value pairs
+SELECT id, key, value FROM products, jsonb_each(data);
+
+-- Aggregate to JSON
+SELECT json_agg(row_to_json(employees)) FROM employees;
+SELECT json_object_agg(id, first_name) FROM employees;
+
+-- Build JSON objects
+SELECT json_build_object('name', first_name, 'salary', salary) FROM employees;
+
+-- GIN index for JSONB
+CREATE INDEX idx_products_data ON products USING GIN (data);
+CREATE INDEX idx_products_data_path ON products USING GIN (data jsonb_path_ops);
+```
+
+---
+
+## 24. Full-Text Search
+
+```sql
+-- Create table with tsvector
+CREATE TABLE articles (
+    id      SERIAL PRIMARY KEY,
+    title   TEXT,
+    body    TEXT,
+    tsv     TSVECTOR
+);
+
+-- Convert text to tsvector
+SELECT to_tsvector('english', 'The quick brown fox jumps over the lazy dog');
+
+-- Convert query to tsquery
+SELECT to_tsquery('english', 'quick & fox');
+SELECT plainto_tsquery('english', 'quick fox');      -- Handles plain text
+SELECT websearch_to_tsquery('english', '"quick fox"'); -- Web-like syntax
+
+-- Search
+SELECT * FROM articles
+WHERE to_tsvector('english', title || ' ' || body) @@ to_tsquery('english', 'fox & quick');
+
+-- Rank results
+SELECT title,
+    ts_rank(to_tsvector('english', body), to_tsquery('english', 'database')) AS rank
+FROM articles
+WHERE to_tsvector('english', body) @@ to_tsquery('english', 'database')
+ORDER BY rank DESC;
+
+-- Highlight matches
+SELECT ts_headline('english', body, to_tsquery('english', 'database'),
+    'MaxFragments=2, MaxWords=10') AS snippet
+FROM articles
+WHERE to_tsvector('english', body) @@ to_tsquery('english', 'database');
+
+-- Maintain tsvector with trigger
+ALTER TABLE articles ADD COLUMN tsv TSVECTOR;
+
+CREATE FUNCTION articles_tsv_trigger() RETURNS TRIGGER AS $$
+BEGIN
+    NEW.tsv := to_tsvector('english', NEW.title || ' ' || COALESCE(NEW.body, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_tsv BEFORE INSERT OR UPDATE ON articles
+FOR EACH ROW EXECUTE FUNCTION articles_tsv_trigger();
+
+-- Create GIN index on tsvector column
+CREATE INDEX idx_articles_tsv ON articles USING GIN (tsv);
+
+-- Search using indexed column
+SELECT * FROM articles WHERE tsv @@ to_tsquery('english', 'database & performance');
+```
+
+---
+
+## 25. Partitioning
+
+```sql
+-- Range partitioning (e.g., by date)
+CREATE TABLE sales (
+    id          BIGSERIAL,
+    sale_date   DATE NOT NULL,
+    amount      NUMERIC,
+    region      TEXT
+) PARTITION BY RANGE (sale_date);
+
+-- Create partitions
+CREATE TABLE sales_2023 PARTITION OF sales
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+
+CREATE TABLE sales_2024 PARTITION OF sales
+    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+
+-- Default partition (catches everything else)
+CREATE TABLE sales_default PARTITION OF sales DEFAULT;
+
+-- List partitioning
+CREATE TABLE orders (
+    id      BIGSERIAL,
+    region  TEXT NOT NULL,
+    amount  NUMERIC
+) PARTITION BY LIST (region);
+
+CREATE TABLE orders_us PARTITION OF orders FOR VALUES IN ('US', 'CA');
+CREATE TABLE orders_eu PARTITION OF orders FOR VALUES IN ('UK', 'DE', 'FR');
+
+-- Hash partitioning
+CREATE TABLE logs (
+    id      BIGSERIAL,
+    message TEXT
+) PARTITION BY HASH (id);
+
+CREATE TABLE logs_0 PARTITION OF logs FOR VALUES WITH (MODULUS 4, REMAINDER 0);
+CREATE TABLE logs_1 PARTITION OF logs FOR VALUES WITH (MODULUS 4, REMAINDER 1);
+CREATE TABLE logs_2 PARTITION OF logs FOR VALUES WITH (MODULUS 4, REMAINDER 2);
+CREATE TABLE logs_3 PARTITION OF logs FOR VALUES WITH (MODULUS 4, REMAINDER 3);
+
+-- Sub-partitioning
+CREATE TABLE sales_2024_q1 PARTITION OF sales_2024
+    FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
+
+-- Attach existing table as partition
+ALTER TABLE sales ATTACH PARTITION existing_table
+    FOR VALUES FROM ('2022-01-01') TO ('2023-01-01');
+
+-- Detach partition
+ALTER TABLE sales DETACH PARTITION sales_2022;
+
+-- Index on partitioned table (creates on all partitions)
+CREATE INDEX ON sales (sale_date);
+
+-- List partitions
+SELECT inhrelid::regclass AS partition
+FROM pg_inherits
+WHERE inhparent = 'sales'::regclass;
+```
+
+---
+
+## 26. Inheritance
+
+```sql
+-- Parent table
+CREATE TABLE vehicles (
+    id      SERIAL PRIMARY KEY,
+    make    TEXT,
+    model   TEXT,
+    year    INT
+);
+
+-- Child tables inherit all columns
+CREATE TABLE cars (
+    num_doors INT
+) INHERITS (vehicles);
+
+CREATE TABLE trucks (
+    payload_tons NUMERIC
+) INHERITS (vehicles);
+
+-- Insert into child
+INSERT INTO cars (make, model, year, num_doors) VALUES ('Toyota', 'Camry', 2023, 4);
+
+-- Query parent (includes child rows)
+SELECT * FROM vehicles;
+
+-- Query only parent (exclude children)
+SELECT * FROM ONLY vehicles;
+
+-- Drop parent but keep children
+DROP TABLE vehicles;  -- Will fail if children exist
+DROP TABLE vehicles CASCADE;
+```
+
+---
+
+## 27. Extensions
+
+```sql
+-- List available extensions
+SELECT name, default_version, comment FROM pg_available_extensions ORDER BY name;
+
+-- List installed extensions
+SELECT extname, extversion FROM pg_extension;
+
+-- Install extension
+CREATE EXTENSION IF NOT EXISTS uuid-ossp;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS hstore;
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Use UUID generation
+SELECT uuid_generate_v4();
+
+-- Use pgcrypto
+SELECT crypt('mypassword', gen_salt('bf'));
+
+-- Use hstore
+CREATE TABLE settings (id SERIAL, data HSTORE);
+INSERT INTO settings (data) VALUES ('key1=>value1, key2=>value2');
+SELECT data -> 'key1' FROM settings;
+
+-- pg_trgm (fuzzy matching)
+SELECT similarity('hello', 'helo');
+SELECT * FROM employees WHERE similarity(first_name, 'Jhon') > 0.4;
+
+-- Drop extension
+DROP EXTENSION uuid-ossp;
+```
+
+---
+
+## 28. Advanced Features
+
+### Array Operations
+
+```sql
+-- Array literals
+SELECT ARRAY[1, 2, 3, 4];
+SELECT '{a,b,c}'::TEXT[];
+
+-- Array functions
+SELECT array_length(ARRAY[1,2,3], 1);      -- Length of dimension 1
+SELECT array_append(ARRAY[1,2], 3);        -- Add element
+SELECT array_prepend(0, ARRAY[1,2]);       -- Prepend element
+SELECT array_cat(ARRAY[1,2], ARRAY[3,4]);  -- Concatenate
+SELECT array_remove(ARRAY[1,2,3,2], 2);   -- Remove all occurrences
+SELECT unnest(ARRAY[1,2,3]);               -- Expand to rows
+SELECT array_position(ARRAY['a','b','c'], 'b'); -- Find position
+
+-- Array containment
+SELECT ARRAY[1,2,3] @> ARRAY[2,3];    -- Contains
+SELECT ARRAY[1,2] <@ ARRAY[1,2,3];    -- Is contained by
+SELECT ARRAY[1,2] && ARRAY[2,3];      -- Overlap
+```
+
+### String Functions
+
+```sql
+SELECT length('hello');                          -- 5
+SELECT upper('hello'), lower('HELLO');
+SELECT substring('hello world', 7);              -- world
+SELECT substring('hello world', 1, 5);           -- hello
+SELECT position('world' IN 'hello world');       -- 7
+SELECT replace('hello world', 'world', 'there');
+SELECT split_part('a,b,c', ',', 2);             -- b
+SELECT trim('  hello  ');
+SELECT ltrim('  hello'), rtrim('hello  ');
+SELECT lpad('5', 3, '0');                        -- 005
+SELECT repeat('ab', 3);                          -- ababab
+SELECT reverse('hello');                          -- olleh
+SELECT regexp_replace('phone: 123-456', '\d', 'X', 'g');
+SELECT regexp_matches('foo bar', '(\w+)', 'g');
+SELECT string_to_array('a,b,c', ',');
+SELECT array_to_string(ARRAY['a','b','c'], '-'); -- a-b-c
+SELECT concat('Hello', ' ', 'World');
+SELECT format('Hello %s, you are %s years old', 'Alice', 30);
+```
+
+### Date & Time Functions
+
+```sql
+SELECT NOW();                            -- Current timestamp with timezone
+SELECT CURRENT_DATE;                     -- Current date
+SELECT CURRENT_TIME;                     -- Current time
+SELECT LOCALTIMESTAMP;                   -- Without timezone
+
+SELECT DATE_PART('year', NOW());         -- Extract year
+SELECT DATE_PART('month', NOW());
+SELECT DATE_PART('dow', NOW());          -- Day of week (0=Sunday)
+SELECT EXTRACT(EPOCH FROM NOW());        -- Unix timestamp
+
+SELECT DATE_TRUNC('month', NOW());       -- Truncate to month start
+SELECT DATE_TRUNC('year', NOW());
+
+SELECT NOW() + INTERVAL '1 day';
+SELECT NOW() - INTERVAL '1 month';
+SELECT AGE('2000-01-01');                -- Interval from date to now
+SELECT AGE(NOW(), '2000-01-01');
+
+SELECT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS');
+SELECT TO_DATE('2024-03-15', 'YYYY-MM-DD');
+SELECT TO_TIMESTAMP('2024-03-15 10:30:00', 'YYYY-MM-DD HH24:MI:SS');
+
+SELECT DATE '2024-01-31' + 1;           -- Next day
+SELECT DATE '2024-03-01' - DATE '2024-01-01';  -- Days between
+```
+
+### Type Casting
+
+```sql
+SELECT '42'::INTEGER;
+SELECT '3.14'::FLOAT;
+SELECT '2024-01-01'::DATE;
+SELECT 42::TEXT;
+SELECT CAST('42' AS INTEGER);
+SELECT CAST(salary AS TEXT) FROM employees;
+```
+
+### COPY for Bulk Data
+
+```sql
+-- Copy from CSV file (server-side)
+COPY employees FROM '/tmp/employees.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',');
+
+-- Copy to CSV file (server-side)
+COPY employees TO '/tmp/employees.csv' WITH (FORMAT CSV, HEADER TRUE);
+
+-- \copy (client-side, doesn't need superuser)
+\copy employees FROM 'employees.csv' CSV HEADER
+\copy employees TO 'employees_out.csv' CSV HEADER
+
+-- Copy specific columns
+COPY employees (first_name, last_name, email) FROM '/tmp/data.csv' CSV HEADER;
+
+-- Copy with custom NULL string
+COPY employees FROM '/tmp/data.csv' WITH (FORMAT CSV, NULL 'NULL', HEADER TRUE);
+```
+
+### Foreign Data Wrappers
+
+```sql
+-- Access external PostgreSQL database
+CREATE EXTENSION postgres_fdw;
+
+CREATE SERVER remote_db
+FOREIGN DATA WRAPPER postgres_fdw
+OPTIONS (host 'remote-host', dbname 'remotedb', port '5432');
+
+CREATE USER MAPPING FOR current_user
+SERVER remote_db
+OPTIONS (user 'remote_user', password 'remote_pass');
+
+IMPORT FOREIGN SCHEMA public
+FROM SERVER remote_db INTO local_schema;
+
+-- Or manually
+CREATE FOREIGN TABLE remote_employees (
+    id INT, first_name TEXT, salary NUMERIC
+)
+SERVER remote_db
+OPTIONS (schema_name 'public', table_name 'employees');
+```
+
+### Configuration & System
+
+```sql
+-- Show all settings
+SHOW ALL;
+SHOW work_mem;
+SHOW max_connections;
+
+-- Change setting for session
+SET work_mem = '64MB';
+SET statement_timeout = '30s';
+
+-- Change for database
+ALTER DATABASE mydb SET work_mem = '64MB';
+
+-- Change for user
+ALTER USER myuser SET work_mem = '128MB';
+
+-- System information
+SELECT version();
+SELECT current_user;
+SELECT current_database();
+SELECT inet_server_addr(), inet_server_port();
+
+-- Process list
+SELECT pid, usename, application_name, state, query
+FROM pg_stat_activity;
+
+-- Cancel query (soft)
+SELECT pg_cancel_backend(12345);
+
+-- Terminate connection (hard)
+SELECT pg_terminate_backend(12345);
+
+-- Check PostgreSQL config file location
+SHOW config_file;
+SHOW hba_file;
+
+-- Reload config without restart
+SELECT pg_reload_conf();
+
+-- Table row count estimate (fast)
+SELECT reltuples::BIGINT AS estimated_rows FROM pg_class WHERE relname = 'employees';
+
+-- Exact row count
+SELECT COUNT(*) FROM employees;
+```
+
+---
+
+## Quick Reference Cheatsheet
+
+| Task | Command |
+|------|---------|
+| Connect to DB | `psql -U user -d dbname` |
+| List databases | `\l` |
+| Switch database | `\c dbname` |
+| List tables | `\dt` |
+| Describe table | `\d tablename` |
+| List users | `\du` |
+| Run SQL file | `\i file.sql` |
+| Quit psql | `\q` |
+| Show query time | `\timing` |
+| Expanded output | `\x` |
+| Dump database | `pg_dump -U user -d db -f out.sql` |
+| Restore database | `psql -U user -d db -f out.sql` |
+
+---
+
+*PostgreSQL version reference: Most commands work on PostgreSQL 12+. Some features (e.g., `PROCEDURE`, `GENERATED ALWAYS`, certain partition features) require PostgreSQL 11+.*
